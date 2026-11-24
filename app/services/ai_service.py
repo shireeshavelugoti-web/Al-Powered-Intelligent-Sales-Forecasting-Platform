@@ -3,6 +3,15 @@ import os
 from typing import Any, Mapping
 
 from google import genai
+from dotenv import load_dotenv
+
+
+load_dotenv()
+
+
+def get_gemini_api_key() -> str | None:
+    """Read either supported Gemini API key environment variable."""
+    return os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
 
 
 def fallback_analysis(lead):
@@ -36,7 +45,7 @@ def fallback_analysis(lead):
 
 def analyze_company(lead):
 
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = get_gemini_api_key()
 
     if not api_key:
         return fallback_analysis(lead)
@@ -45,7 +54,7 @@ def analyze_company(lead):
 
     model = os.getenv(
         "GEMINI_MODEL",
-        "gemini-3.1-flash-lite"
+        "gemini-2.5-flash"
     )
 
     prompt = f"""
@@ -159,12 +168,12 @@ def generate_personalized_email(
     lead: Mapping[str, Any], analysis: Mapping[str, Any] | None = None
 ) -> dict[str, str]:
     """Create a reviewable email draft using only the supplied lead and analysis."""
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key = get_gemini_api_key()
     if not api_key:
         return _fallback_email_draft(lead, analysis)
 
     client = genai.Client(api_key=api_key)
-    model = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
+    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     source_data = {
         "lead": {key: value for key, value in lead.items() if value is not None},
         "saved_company_analysis": dict(analysis) if analysis else None,
@@ -402,3 +411,151 @@ def recommend_outreach(
         "information_sufficient": True,
         "missing_information": missing_information,
     }
+
+
+def generate_ai_response(prompt: str) -> dict:
+    api_key = get_gemini_api_key()
+    if not api_key:
+        raise RuntimeError("Gemini API key is missing")
+
+    client = genai.Client(api_key=api_key)
+    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+
+    response = client.models.generate_content(
+        model=model,
+        contents=prompt
+    )
+
+    raw = (response.text or "").strip()
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+
+    return json.loads(raw)
+
+
+def generate_email(lead, service, tone, context=None):
+    api_key = get_gemini_api_key()
+    if not api_key:
+        company = lead.get("company_name", "your company")
+        contact = lead.get("contact_person", "there")
+        greeting = f"Hi {contact}," if contact else "Hello,"
+        return {
+            "subject": f"Partnership opportunity with {company}",
+            "body": f"{greeting}\n\nI hope this email finds you well. I am reaching out to explore potential collaboration opportunities between our teams, particularly around {service}.\n\nLooking forward to connecting.\n\nBest regards,\nSales Team"
+        }
+
+    prompt = f"""
+    You are a professional B2B sales email writer.
+
+    Generate a personalized sales email.
+
+    COMPANY INFORMATION:
+
+    Company: {lead.get('company_name', '')}
+    Industry: {lead.get('industry', '')}
+    Contact: {lead.get('contact_person', '')}
+    Website: {lead.get('website', '')}
+    Technology: {lead.get('technology_stack', '')}
+    Description: {lead.get('description', '')}
+
+    OUR SERVICES:
+    {service}
+
+    ADDITIONAL CONTEXT:
+    {context or "None"}
+
+    EMAIL TONE:
+    {tone}
+
+    REQUIREMENTS:
+
+    1. Generate a professional email.
+    2. Personalize it based on the company.
+    3. Explain how our services may help.
+    4. Include a suitable call to action.
+    5. Keep it concise.
+    6. Do not invent company facts.
+    7. Do not claim an unverified business requirement.
+
+    Return ONLY JSON:
+
+    {{
+        "subject": "Email subject",
+        "body": "Complete email body"
+    }}
+    """
+
+    result = generate_ai_response(prompt)
+
+    if not result.get("subject") or not result.get("body"):
+        raise ValueError("Invalid email response from AI")
+
+    return result
+
+
+def generate_recommendation(
+    lead,
+    score,
+    priority
+):
+    api_key = get_gemini_api_key()
+    if not api_key:
+        return {
+            "channel": "Email",
+            "follow_up_timing": "Within 48 hours",
+            "strategy": f"Initiate initial outreach highlighting relevant solutions for {lead.get('company_name', 'prospect')}.",
+            "next_action": "Send personalized introductory email and schedule follow-up call."
+        }
+
+    prompt = f"""
+    You are an AI sales strategy assistant.
+
+    Analyse this prospect and generate an outreach strategy.
+
+    COMPANY:
+    {lead.get('company_name', '')}
+
+    INDUSTRY:
+    {lead.get('industry', '')}
+
+    BUSINESS DESCRIPTION:
+    {lead.get('description', '')}
+
+    LEAD SCORE:
+    {score}/100
+
+    PRIORITY:
+    {priority}
+
+    Generate:
+
+    1. Communication channel.
+    2. Suggested follow-up timing.
+    3. Outreach strategy.
+    4. Next recommended action.
+
+    Do not invent previous interactions or contact history.
+
+    Return ONLY JSON:
+
+    {{
+        "channel": "Email",
+        "follow_up_timing": "Within 48 hours",
+        "strategy": "Recommended strategy",
+        "next_action": "Recommended next action"
+    }}
+    """
+
+    result = generate_ai_response(prompt)
+
+    required = [
+        "channel",
+        "follow_up_timing",
+        "strategy",
+        "next_action"
+    ]
+
+    if any(not result.get(key) for key in required):
+        raise ValueError("Invalid recommendation response")
+
+    return result

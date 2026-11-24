@@ -1,0 +1,28 @@
+{
+  "trained_at": "2026-11-23T19:32:47.377761+00:00",
+  "dataset": "dataset\\historical_leads.csv",
+  "feature_names": [
+    "company_growth",
+    "industry_match",
+    "technology_alignment",
+    "business_need",
+    "engagement_level"
+  ],
+  "training_rows": 12,
+  "test_rows": 4,
+  "accuracy": 1.0,
+  "precision": 1.0,
+  "recall": 1.0,
+  "f1": 1.0,
+  "confusion_matrix": [
+    [
+      2,
+      0
+    ],
+    [
+      0,
+      2
+    ]
+  ],
+  "meets_milestone_2_accuracy_target": true
+}

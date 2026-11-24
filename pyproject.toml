@@ -1,0 +1,8 @@
+[project]
+name = "al-powered-intelligent-sales-forecasting-platform"
+version = "0.1.0"
+description = "AI-Powered Intelligent Sales Forecasting Platform"
+requires-python = ">=3.10"
+
+[tool.pyrefly]
+search-path = ["."]

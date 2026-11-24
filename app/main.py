@@ -1,15 +1,18 @@
 # Defines API endpoints and handles requests.
 from contextlib import asynccontextmanager
 from pathlib import Path
+
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from database import Base, sql_engine
-from router import analysis, leads, outreach
+
+from . import models
+from .database import Base, sql_engine
+from .routers import analysis, leads, outreach, scroing
 
 
-STATIC_DIR = Path(__file__).resolve().parent / "static"
+STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 
 @asynccontextmanager
@@ -40,6 +43,7 @@ app.add_middleware(
 app.include_router(leads.router)
 app.include_router(analysis.router)
 app.include_router(outreach.router)
+app.include_router(scroing.router)
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
